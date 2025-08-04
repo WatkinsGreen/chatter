@@ -86,6 +86,23 @@ export NAGIOS_USERNAME="nagiosadmin"
 export NAGIOS_PASSWORD="your-password"
 ```
 
+## Power Automate Integration
+
+The chatbot now includes Microsoft Power Automate workflows for automated incident response:
+
+### Automated Features
+- **Teams Notifications**: Auto-send adaptive cards to Teams channels
+- **Ticket Creation**: Auto-create ServiceNow/Jira tickets for critical alerts
+- **Escalation Workflows**: Progressive escalation with timed triggers
+- **Alert Correlation**: Trigger automations when patterns detected
+
+### Setup Power Automate
+1. Import flow templates from `power-automate-flows/` directory
+2. Configure webhook URLs: `POST /power-automate/webhooks/configure`
+3. Test integrations: `POST /power-automate/trigger/teams-notification`
+
+See `power-automate-flows/README.md` for detailed setup instructions.
+
 ## Sample Queries
 
 Try these questions with the chatbot:

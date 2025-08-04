@@ -1,0 +1,273 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {},
+    "triggers": {
+      "manual": {
+        "type": "Request",
+        "kind": "Http",
+        "inputs": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "severity": {
+                "type": "string",
+                "enum": ["high", "medium", "low"]
+              },
+              "service": {
+                "type": "string"
+              },
+              "alert_name": {
+                "type": "string"
+              },
+              "timestamp": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "metric_value": {
+                "type": "number"
+              },
+              "baseline_value": {
+                "type": "number"
+              },
+              "correlation_data": {
+                "type": "object"
+              }
+            },
+            "required": ["severity", "service", "alert_name", "timestamp", "description"]
+          }
+        }
+      }
+    },
+    "actions": {
+      "Initialize_Color_Variable": {
+        "type": "InitializeVariable",
+        "inputs": {
+          "variables": [
+            {
+              "name": "CardColor",
+              "type": "string",
+              "value": "@{if(equals(triggerBody()?['severity'], 'high'), 'attention', if(equals(triggerBody()?['severity'], 'medium'), 'warning', 'good'))}"
+            }
+          ]
+        }
+      },
+      "Initialize_Teams_Channel": {
+        "type": "InitializeVariable", 
+        "inputs": {
+          "variables": [
+            {
+              "name": "TeamsChannel",
+              "type": "string",
+              "value": "@{if(equals(triggerBody()?['severity'], 'high'), 'https://outlook.office.com/webhook/YOUR-CRITICAL-WEBHOOK-URL', 'https://outlook.office.com/webhook/YOUR-WARNING-WEBHOOK-URL')}"
+            }
+          ]
+        },
+        "runAfter": {
+          "Initialize_Color_Variable": ["Succeeded"]
+        }
+      },
+      "Post_Adaptive_Card_to_Teams": {
+        "type": "Http",
+        "inputs": {
+          "method": "POST",
+          "uri": "@variables('TeamsChannel')",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "type": "message",
+            "attachments": [
+              {
+                "contentType": "application/vnd.microsoft.card.adaptive",
+                "content": {
+                  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                  "type": "AdaptiveCard",
+                  "version": "1.2",
+                  "body": [
+                    {
+                      "type": "TextBlock",
+                      "text": "🚨 @{triggerBody()?['alert_name']}",
+                      "weight": "Bolder",
+                      "size": "Medium",
+                      "color": "@variables('CardColor')"
+                    },
+                    {
+                      "type": "ColumnSet",
+                      "columns": [
+                        {
+                          "type": "Column",
+                          "width": "auto",
+                          "items": [
+                            {
+                              "type": "FactSet",
+                              "facts": [
+                                {
+                                  "title": "Service",
+                                  "value": "@{triggerBody()?['service']}"
+                                },
+                                {
+                                  "title": "Severity", 
+                                  "value": "@{toUpper(triggerBody()?['severity'])}"
+                                },
+                                {
+                                  "title": "Time",
+                                  "value": "@{triggerBody()?['timestamp']}"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "Column",
+                          "width": "stretch",
+                          "items": [
+                            {
+                              "type": "TextBlock",
+                              "text": "@{triggerBody()?['description']}",
+                              "wrap": true,
+                              "size": "Small"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "Container",
+                      "items": [
+                        {
+                          "type": "TextBlock",
+                          "text": "Metric Details",
+                          "weight": "Bolder",
+                          "size": "Small"
+                        },
+                        {
+                          "type": "FactSet",
+                          "facts": [
+                            {
+                              "title": "Current Value",
+                              "value": "@{if(empty(triggerBody()?['metric_value']), 'N/A', string(triggerBody()?['metric_value']))}"
+                            },
+                            {
+                              "title": "Baseline",
+                              "value": "@{if(empty(triggerBody()?['baseline_value']), 'N/A', string(triggerBody()?['baseline_value']))}"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ],
+                  "actions": [
+                    {
+                      "type": "Action.OpenUrl",
+                      "title": "📊 View Dashboard",
+                      "url": "http://localhost:3000?service=@{triggerBody()?['service']}"
+                    },
+                    {
+                      "type": "Action.Http",
+                      "title": "✅ Acknowledge",
+                      "method": "POST",
+                      "url": "http://localhost:8000/power-automate/acknowledge/@{triggerBody()?['service']}",
+                      "body": "{\\"acknowledged_by\\": \\"{{user.displayName}}\\"}",
+                      "headers": {
+                        "Content-Type": "application/json"
+                      }
+                    },
+                    {
+                      "type": "Action.ShowCard",
+                      "title": "🎫 Create Ticket",
+                      "card": {
+                        "type": "AdaptiveCard",
+                        "body": [
+                          {
+                            "type": "Input.ChoiceSet",
+                            "id": "ticketSystem",
+                            "title": "Ticket System",
+                            "choices": [
+                              {"title": "ServiceNow", "value": "servicenow"},
+                              {"title": "Jira", "value": "jira"}
+                            ],
+                            "value": "servicenow"
+                          },
+                          {
+                            "type": "Input.Text",
+                            "id": "assignee",
+                            "title": "Assign To (optional)",
+                            "placeholder": "Enter username or leave empty for auto-assignment"
+                          }
+                        ],
+                        "actions": [
+                          {
+                            "type": "Action.Http",
+                            "title": "Create Ticket",
+                            "method": "POST",
+                            "url": "http://localhost:8000/power-automate/trigger/create-ticket",
+                            "body": {
+                              "service_now_url": "{{ticketSystem.value}}",
+                              "title": "@{triggerBody()?['alert_name']} - @{triggerBody()?['service']}",
+                              "description": "@{triggerBody()?['description']}",
+                              "severity": "@{triggerBody()?['severity']}",
+                              "service": "@{triggerBody()?['service']}",
+                              "assigned_to": "{{assignee.value}}"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        "runAfter": {
+          "Initialize_Teams_Channel": ["Succeeded"]
+        }
+      },
+      "Log_to_SharePoint": {
+        "type": "ApiConnection",
+        "inputs": {
+          "host": {
+            "connectionName": "shared_sharepointonline",
+            "operationId": "PostItem",
+            "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+          },
+          "parameters": {
+            "dataset": "https://yourtenant.sharepoint.com/sites/IncidentResponse",
+            "table": "Notifications",
+            "item": {
+              "Title": "@triggerBody()?['alert_name']",
+              "Service": "@triggerBody()?['service']",
+              "Severity": "@triggerBody()?['severity']",
+              "Timestamp": "@triggerBody()?['timestamp']",
+              "Description": "@triggerBody()?['description']",
+              "Status": "Sent",
+              "NotificationType": "Teams"
+            }
+          }
+        },
+        "runAfter": {
+          "Post_Adaptive_Card_to_Teams": ["Succeeded"]
+        }
+      },
+      "Response": {
+        "type": "Response",
+        "inputs": {
+          "statusCode": 200,
+          "body": {
+            "status": "success",
+            "message": "Teams notification sent",
+            "alert_id": "@{triggerBody()?['service']}_@{triggerBody()?['timestamp']}"
+          }
+        },
+        "runAfter": {
+          "Log_to_SharePoint": ["Succeeded"]
+        }
+      }
+    }
+  },
+  "parameters": {}
+}

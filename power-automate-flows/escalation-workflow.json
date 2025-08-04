@@ -1,0 +1,342 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {},
+    "triggers": {
+      "Recurrence": {
+        "type": "Recurrence",
+        "recurrence": {
+          "frequency": "Minute",
+          "interval": 5
+        }
+      }
+    },
+    "actions": {
+      "Get_Unacknowledged_Alerts": {
+        "type": "Http",
+        "inputs": {
+          "method": "GET",
+          "uri": "http://localhost:8000/power-automate/unacknowledged-alerts",
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        }
+      },
+      "Parse_Alerts_Response": {
+        "type": "ParseJson",
+        "inputs": {
+          "content": "@body('Get_Unacknowledged_Alerts')",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "alerts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "service": {"type": "string"},
+                    "alert_name": {"type": "string"},
+                    "severity": {"type": "string"},
+                    "timestamp": {"type": "string"},
+                    "minutes_since_alert": {"type": "integer"},
+                    "escalation_level": {"type": "integer"}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "runAfter": {
+          "Get_Unacknowledged_Alerts": ["Succeeded"]
+        }
+      },
+      "Filter_Escalation_Candidates": {
+        "type": "Query",
+        "inputs": {
+          "from": "@body('Parse_Alerts_Response')?['alerts']",
+          "where": "@and(greater(item()?['minutes_since_alert'], 5), equals(item()?['severity'], 'high'))"
+        },
+        "runAfter": {
+          "Parse_Alerts_Response": ["Succeeded"]
+        }
+      },
+      "Apply_to_Each_Alert": {
+        "type": "Foreach",
+        "foreach": "@body('Filter_Escalation_Candidates')",
+        "actions": {
+          "Determine_Escalation_Level": {
+            "type": "Switch",
+            "expression": "@item()?['minutes_since_alert']",
+            "cases": {
+              "Level_1": {
+                "case": 5,
+                "actions": {
+                  "Set_Escalation_Level_1": {
+                    "type": "SetVariable",
+                    "inputs": {
+                      "name": "CurrentEscalationLevel",
+                      "value": 1
+                    }
+                  },
+                  "Get_Team_Lead": {
+                    "type": "Compose",
+                    "inputs": "@variables('ServiceEscalation')[item()?['service']]['team_lead']",
+                    "runAfter": {
+                      "Set_Escalation_Level_1": ["Succeeded"]
+                    }
+                  }
+                }
+              },
+              "Level_2": {
+                "case": 15,
+                "actions": {
+                  "Set_Escalation_Level_2": {
+                    "type": "SetVariable",
+                    "inputs": {
+                      "name": "CurrentEscalationLevel", 
+                      "value": 2
+                    }
+                  },
+                  "Get_Manager": {
+                    "type": "Compose",
+                    "inputs": "@variables('ServiceEscalation')[item()?['service']]['manager']",
+                    "runAfter": {
+                      "Set_Escalation_Level_2": ["Succeeded"]
+                    }
+                  }
+                }
+              },
+              "Level_3": {
+                "case": 30,
+                "actions": {
+                  "Set_Escalation_Level_3": {
+                    "type": "SetVariable",
+                    "inputs": {
+                      "name": "CurrentEscalationLevel",
+                      "value": 3
+                    }
+                  },
+                  "Get_Director": {
+                    "type": "Compose",
+                    "inputs": "@variables('ServiceEscalation')[item()?['service']]['director']",
+                    "runAfter": {
+                      "Set_Escalation_Level_3": ["Succeeded"]
+                    }
+                  },
+                  "Create_Conference_Bridge": {
+                    "type": "ApiConnection",
+                    "inputs": {
+                      "host": {
+                        "connectionName": "shared_teams",
+                        "operationId": "CreateMeeting",
+                        "apiId": "/providers/Microsoft.PowerApps/apis/shared_teams"
+                      },
+                      "parameters": {
+                        "subject": "CRITICAL: Incident Response - @{item()?['service']} - @{item()?['alert_name']}",
+                        "startTime": "@utcNow()",
+                        "endTime": "@addHours(utcNow(), 2)",
+                        "attendees": "@variables('ServiceEscalation')[item()?['service']]['escalation_list']"
+                      }
+                    },
+                    "runAfter": {
+                      "Get_Director": ["Succeeded"]
+                    }
+                  }
+                }
+              }
+            },
+            "default": {
+              "actions": {}
+            }
+          },
+          "Send_Escalation_Teams_Message": {
+            "type": "Http",
+            "inputs": {
+              "method": "POST",
+              "uri": "@variables('ServiceEscalation')[item()?['service']]['teams_webhook']",
+              "headers": {
+                "Content-Type": "application/json"
+              },
+              "body": {
+                "type": "message",
+                "attachments": [
+                  {
+                    "contentType": "application/vnd.microsoft.card.adaptive",
+                    "content": {
+                      "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                      "type": "AdaptiveCard",
+                      "version": "1.2",
+                      "body": [
+                        {
+                          "type": "TextBlock",
+                          "text": "🚨 ESCALATION LEVEL @{variables('CurrentEscalationLevel')}",
+                          "weight": "Bolder",
+                          "size": "Large",
+                          "color": "attention"
+                        },
+                        {
+                          "type": "TextBlock",
+                          "text": "Unacknowledged critical alert requires immediate attention",
+                          "weight": "Lighter",
+                          "size": "Medium"
+                        },
+                        {
+                          "type": "FactSet",
+                          "facts": [
+                            {
+                              "title": "Service",
+                              "value": "@{item()?['service']}"
+                            },
+                            {
+                              "title": "Alert",
+                              "value": "@{item()?['alert_name']}"
+                            },
+                            {
+                              "title": "Duration",
+                              "value": "@{item()?['minutes_since_alert']} minutes"
+                            },
+                            {
+                              "title": "Escalation Level",
+                              "value": "Level @{variables('CurrentEscalationLevel')}"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "Container",
+                          "style": "attention",
+                          "items": [
+                            {
+                              "type": "TextBlock",
+                              "text": "This incident has not been acknowledged and requires immediate escalation.",
+                              "wrap": true,
+                              "weight": "Bolder"
+                            }
+                          ]
+                        }
+                      ],
+                      "actions": [
+                        {
+                          "type": "Action.OpenUrl",
+                          "title": "🚨 View Incident Dashboard",
+                          "url": "http://localhost:3000?service=@{item()?['service']}&escalated=true"
+                        },
+                        {
+                          "type": "Action.Http",
+                          "title": "✅ Acknowledge & Take Ownership",
+                          "method": "POST",
+                          "url": "http://localhost:8000/power-automate/escalation-acknowledge",
+                          "body": "{\\"service\\": \\"@{item()?['service']}\\", \\"escalation_level\\": @{variables('CurrentEscalationLevel')}, \\"acknowledged_by\\": \\"{{user.displayName}}\\"}"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "runAfter": {
+              "Determine_Escalation_Level": ["Succeeded"]
+            }
+          },
+          "Send_Email_Escalation": {
+            "type": "ApiConnection",
+            "inputs": {
+              "host": {
+                "connectionName": "shared_office365",
+                "operationId": "SendEmailV2",
+                "apiId": "/providers/Microsoft.PowerApps/apis/shared_office365"
+              },
+              "parameters": {
+                "emailMessage": {
+                  "To": "@{if(equals(variables('CurrentEscalationLevel'), 1), variables('ServiceEscalation')[item()?['service']]['team_lead'], if(equals(variables('CurrentEscalationLevel'), 2), variables('ServiceEscalation')[item()?['service']]['manager'], variables('ServiceEscalation')[item()?['service']]['director']))}",
+                  "Subject": "ESCALATION L@{variables('CurrentEscalationLevel')}: @{item()?['alert_name']} - @{item()?['service']}",
+                  "Body": "<h2 style='color: red'>🚨 INCIDENT ESCALATION - LEVEL @{variables('CurrentEscalationLevel')}</h2><p><strong>Service:</strong> @{item()?['service']}<br><strong>Alert:</strong> @{item()?['alert_name']}<br><strong>Duration:</strong> @{item()?['minutes_since_alert']} minutes unacknowledged<br><strong>Severity:</strong> @{item()?['severity']}</p><p>This critical incident has not been acknowledged and requires immediate attention.</p><p><a href='http://localhost:3000?service=@{item()?['service']}&escalated=true' style='background-color: #dc3545; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;'>VIEW INCIDENT DASHBOARD</a></p><p>Auto-escalated by Incident Response System</p>",
+                  "Importance": "High"
+                }
+              }
+            },
+            "runAfter": {
+              "Send_Escalation_Teams_Message": ["Succeeded"]
+            }
+          },
+          "Update_Escalation_Status": {
+            "type": "Http", 
+            "inputs": {
+              "method": "POST",
+              "uri": "http://localhost:8000/power-automate/escalation-triggered",
+              "headers": {
+                "Content-Type": "application/json"
+              },
+              "body": {
+                "service": "@{item()?['service']}",
+                "alert_name": "@{item()?['alert_name']}",
+                "escalation_level": "@variables('CurrentEscalationLevel')",
+                "escalated_to": "@{if(equals(variables('CurrentEscalationLevel'), 1), variables('ServiceEscalation')[item()?['service']]['team_lead'], if(equals(variables('CurrentEscalationLevel'), 2), variables('ServiceEscalation')[item()?['service']]['manager'], variables('ServiceEscalation')[item()?['service']]['director']))}",
+                "timestamp": "@{utcNow()}"
+              }
+            },
+            "runAfter": {
+              "Send_Email_Escalation": ["Succeeded"]
+            }
+          }
+        }, 
+        "runAfter": {
+          "Initialize_Service_Escalation": ["Succeeded"]
+        }
+      },
+      "Initialize_Current_Escalation_Level": {
+        "type": "InitializeVariable",
+        "inputs": {
+          "variables": [
+            {
+              "name": "CurrentEscalationLevel",
+              "type": "integer",
+              "value": 0
+            }
+          ]
+        },
+        "runAfter": {
+          "Filter_Escalation_Candidates": ["Succeeded"]
+        }
+      },
+      "Initialize_Service_Escalation": {
+        "type": "InitializeVariable",
+        "inputs": {
+          "variables": [
+            {
+              "name": "ServiceEscalation",
+              "type": "object",
+              "value": {
+                "api-gateway": {
+                  "team_lead": "api-lead@company.com",
+                  "manager": "engineering-manager@company.com", 
+                  "director": "engineering-director@company.com",
+                  "teams_webhook": "https://outlook.office.com/webhook/YOUR-API-TEAM-WEBHOOK",
+                  "escalation_list": ["api-lead@company.com", "engineering-manager@company.com"]
+                },
+                "user-service": {
+                  "team_lead": "backend-lead@company.com",
+                  "manager": "engineering-manager@company.com",
+                  "director": "engineering-director@company.com", 
+                  "teams_webhook": "https://outlook.office.com/webhook/YOUR-BACKEND-TEAM-WEBHOOK",
+                  "escalation_list": ["backend-lead@company.com", "engineering-manager@company.com"]
+                },
+                "database-primary": {
+                  "team_lead": "dba-lead@company.com",
+                  "manager": "infrastructure-manager@company.com",
+                  "director": "engineering-director@company.com",
+                  "teams_webhook": "https://outlook.office.com/webhook/YOUR-DBA-TEAM-WEBHOOK", 
+                  "escalation_list": ["dba-lead@company.com", "infrastructure-manager@company.com"]
+                }
+              }
+            }
+          ]
+        },
+        "runAfter": {
+          "Initialize_Current_Escalation_Level": ["Succeeded"]
+        }
+      }
+    }
+  },
+  "parameters": {}
+}

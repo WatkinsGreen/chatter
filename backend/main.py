@@ -7,8 +7,9 @@ import aiohttp
 import json
 from datetime import datetime, timedelta
 import logging
+from power_automate import router as power_automate_router
 
-app = FastAPI(title="Incident Response Chatbot", version="1.0.0")
+app = FastAPI(title="Incident Response Chatbot with Power Automate", version="1.1.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -155,6 +156,9 @@ class IncidentAnalyzer:
             
             if related_errors:
                 analysis.append(f"🚨 **Deployment Correlation**: {deployment['service']} v{deployment['version']} deployed at {deployment['timestamp']} followed by {len(related_errors)} error types")
+                
+                # Trigger Power Automate alert for deployment correlation
+                asyncio.create_task(self.trigger_power_automate_alert(deployment, related_errors))
         
         # Check for cascading failures
         services_with_issues = set()
@@ -165,10 +169,69 @@ class IncidentAnalyzer:
             
         if len(services_with_issues) > 1:
             analysis.append(f"⚠️ **Multi-Service Impact**: {len(services_with_issues)} services affected: {', '.join(services_with_issues)}")
+            
+            # Trigger Power Automate for multi-service impact
+            asyncio.create_task(self.trigger_multi_service_alert(services_with_issues, errors, anomalies))
         
         return "\n".join(analysis) if analysis else "No significant correlations detected."
+    
+    async def trigger_power_automate_alert(self, deployment: Dict[str, Any], related_errors: List[Dict[str, Any]]):
+        """Trigger Power Automate alert for deployment correlation"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                alert_data = {
+                    "severity": "high",
+                    "service": deployment["service"], 
+                    "alert_name": f"Post-Deployment Issues - {deployment['service']} v{deployment['version']}",
+                    "timestamp": datetime.now().isoformat(),
+                    "description": f"Deployment of {deployment['service']} v{deployment['version']} followed by {len(related_errors)} error types",
+                    "correlation_data": {
+                        "deployment": deployment,
+                        "related_errors": related_errors,
+                        "correlation_type": "post_deployment"
+                    }
+                }
+                
+                async with session.post(
+                    "http://localhost:8000/power-automate/webhook/incident",
+                    json=alert_data
+                ) as response:
+                    if response.status == 200:
+                        logging.info(f"Power Automate alert triggered for {deployment['service']}")
+        except Exception as e:
+            logging.error(f"Failed to trigger Power Automate alert: {e}")
+    
+    async def trigger_multi_service_alert(self, services: set, errors: List[Dict[str, Any]], anomalies: List[Dict[str, Any]]):
+        """Trigger Power Automate for multi-service impact"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                alert_data = {
+                    "severity": "high",
+                    "service": "multi-service",
+                    "alert_name": f"Cascading Failure - {len(services)} Services Affected",
+                    "timestamp": datetime.now().isoformat(),
+                    "description": f"Multiple services experiencing issues simultaneously: {', '.join(services)}",
+                    "correlation_data": {
+                        "affected_services": list(services),
+                        "errors": errors,
+                        "anomalies": anomalies,
+                        "correlation_type": "cascading_failure"
+                    }
+                }
+                
+                async with session.post(
+                    "http://localhost:8000/power-automate/webhook/incident", 
+                    json=alert_data
+                ) as response:
+                    if response.status == 200:
+                        logging.info(f"Power Automate multi-service alert triggered")
+        except Exception as e:
+            logging.error(f"Failed to trigger multi-service alert: {e}")
 
 analyzer = IncidentAnalyzer()
+
+# Include Power Automate router
+app.include_router(power_automate_router)
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(message: ChatMessage):
