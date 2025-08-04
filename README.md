@@ -4,17 +4,23 @@ A professional chatbot interface for incident response that correlates data from
 
 ## Features
 
-- **Real-time Analysis**: Queries multiple monitoring systems simultaneously
-- **Change Correlation**: Identifies relationships between deployments, errors, and alerts
-- **Professional UI**: Clean, responsive chat interface with suggestions
-- **Multi-source Integration**: Supports Grafana, Prometheus, Elasticsearch, Nagios, and more
-- **Mock Data**: Includes sample data for testing without live systems
+- **🤖 AI-Powered Analysis**: OpenAI GPT-4 and Anthropic Claude integration for intelligent incident analysis
+- **💬 Natural Language Queries**: Ask complex questions like "Why are we seeing these errors?" or "What should I investigate first?"
+- **🧠 Context-Aware Responses**: Maintains conversation history and builds on previous interactions
+- **🔄 Real-time Analysis**: Queries multiple monitoring systems simultaneously
+- **🔗 Change Correlation**: Identifies relationships between deployments, errors, and alerts
+- **🎨 Professional UI**: Clean, responsive chat interface with AI-powered suggestions
+- **🔌 Multi-source Integration**: Supports Grafana, Prometheus, Elasticsearch, Nagios, and more
+- **📊 Hybrid Approach**: Combines AI intelligence with traditional monitoring data analysis
+- **🚀 Mock Data**: Includes sample data for testing without live systems
 
 ## Architecture
 
-- **Backend**: FastAPI with async connectors for monitoring systems
+- **Backend**: FastAPI with async connectors for monitoring systems and LLM integration
 - **Frontend**: React with TypeScript, Tailwind CSS, and professional styling
-- **Real-time**: WebSocket-ready architecture for live updates
+- **AI Layer**: OpenAI/Anthropic integration with specialized incident response prompts
+- **Memory**: Conversation persistence and context management
+- **Real-time**: WebSocket-ready architecture for live updates and streaming responses
 
 ## Installation & Setup
 
@@ -129,6 +135,25 @@ For production HTTPS:
 
 ## Configuration
 
+### LLM Configuration (Required for AI Features)
+
+Choose one or both LLM providers:
+
+```bash
+# OpenAI Configuration
+export OPENAI_API_KEY="your-openai-api-key"
+export OPENAI_MODEL="gpt-4-turbo-preview"  # or gpt-4, gpt-3.5-turbo
+
+# Anthropic Configuration  
+export ANTHROPIC_API_KEY="your-anthropic-api-key"
+export ANTHROPIC_MODEL="claude-3-sonnet-20240229"  # or claude-3-opus-20240229
+
+# Default LLM Provider
+export LLM_PROVIDER="openai"  # or "anthropic"
+```
+
+### Monitoring Systems Configuration
+
 Set environment variables to connect to your monitoring systems:
 
 ```bash
@@ -152,13 +177,30 @@ export NAGIOS_PASSWORD="your-password"
 
 ## Sample Queries
 
-Try these questions with the chatbot:
+### AI-Powered Queries (with LLM configured)
 
+**Intelligent Analysis:**
+- "Why are we seeing these errors in the user-service?"
+- "What should I investigate first based on the current alerts?"
+- "Analyze the correlation between recent deployments and error spikes"
+- "Explain the impact of the database connection issues"
+- "What are the recommended next steps to resolve this incident?"
+
+**Root Cause Analysis:**
+- "What might have caused the response time increase?"
+- "How do these errors relate to the recent deployment?"
+- "Is this a cascading failure across multiple services?"
+
+### Traditional Queries (always available)
+
+**Data Retrieval:**
 - "What changed in the last 2 hours?"
 - "Show me error details"
 - "Check active alerts"
 - "What changed since 15:30?"
 - "Analyze recent deployments"
+
+The chatbot automatically chooses between AI-powered analysis and traditional responses based on query complexity and LLM availability.
 
 ## Extending
 
@@ -168,6 +210,28 @@ The system is designed to be easily extended:
 2. **Custom correlation**: Modify the `analyze_correlation` method
 3. **New data sources**: Add connectors in the `connectors/` directory
 4. **UI customization**: Modify React components in `frontend/src/`
+5. **LLM customization**: Modify prompts in `llm_service.py` for domain-specific analysis
+6. **New LLM providers**: Extend `LLMService` class to support additional AI providers
+
+## LLM Integration Details
+
+### Supported Providers
+- **OpenAI**: GPT-4, GPT-4 Turbo, GPT-3.5 Turbo
+- **Anthropic**: Claude-3 Opus, Claude-3 Sonnet, Claude-3 Haiku
+
+### AI Features
+- **Specialized Prompts**: Incident response expert persona with monitoring context
+- **Context Injection**: Automatically includes recent changes, alerts, and correlations
+- **Conversation Memory**: Maintains context across multiple interactions
+- **Smart Routing**: Automatically chooses AI vs traditional responses
+- **Fallback Handling**: Graceful degradation when LLM APIs are unavailable
+- **Token Management**: Automatic token counting and conversation truncation
+
+### Cost Optimization
+- Intelligent query routing reduces unnecessary LLM calls
+- Conversation history truncation keeps token usage reasonable
+- Provider selection allows cost vs quality optimization
+- Fallback to traditional responses when LLM isn't needed
 
 ## Production Deployment
 
