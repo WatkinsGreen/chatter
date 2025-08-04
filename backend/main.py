@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import asyncio
@@ -7,8 +8,9 @@ import aiohttp
 import json
 from datetime import datetime, timedelta
 import logging
+from llm_service import llm_service, IncidentContext, ConversationMessage, LLMResponse
 
-app = FastAPI(title="Incident Response Chatbot", version="1.0.0")
+app = FastAPI(title="Incident Response Chatbot with AI", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -21,11 +23,22 @@ app.add_middleware(
 class ChatMessage(BaseModel):
     message: str
     timestamp: Optional[datetime] = None
+    conversation_id: Optional[str] = None
 
 class ChatResponse(BaseModel):
     response: str
     data: Optional[Dict[str, Any]] = None
     suggestions: Optional[List[str]] = None
+    llm_response: Optional[LLMResponse] = None
+    analysis_type: str = "standard"
+
+class StreamingChatRequest(BaseModel):
+    message: str
+    conversation_id: Optional[str] = None
+    provider: Optional[str] = None
+
+# Conversation memory storage (in production, use Redis or database)
+conversation_memory: Dict[str, List[ConversationMessage]] = {}
 
 class IncidentAnalyzer:
     def __init__(self):
@@ -170,22 +183,103 @@ class IncidentAnalyzer:
 
 analyzer = IncidentAnalyzer()
 
+# Power Automate integration is available on PowerAutomate branch
+
+def get_conversation_history(conversation_id: str) -> List[ConversationMessage]:
+    """Get conversation history for a session"""
+    return conversation_memory.get(conversation_id, [])
+
+def add_to_conversation(conversation_id: str, role: str, content: str, metadata: Dict[str, Any] = None):
+    """Add message to conversation history"""
+    if conversation_id not in conversation_memory:
+        conversation_memory[conversation_id] = []
+    
+    message = ConversationMessage(
+        role=role,
+        content=content,
+        timestamp=datetime.now(),
+        metadata=metadata
+    )
+    
+    conversation_memory[conversation_id].append(message)
+    
+    # Keep only last 50 messages per conversation
+    if len(conversation_memory[conversation_id]) > 50:
+        conversation_memory[conversation_id] = conversation_memory[conversation_id][-50:]
+
 @app.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(message: ChatMessage):
     query = message.message.lower()
+    conversation_id = message.conversation_id or "default"
     
     try:
+        # Add user message to conversation history
+        add_to_conversation(conversation_id, "user", message.message)
+        
+        # Get monitoring data for context
+        data = await analyzer.query_recent_changes(2)
+        correlation_analysis = analyzer.analyze_correlation(data)
+        
+        # Create incident context for LLM
+        context = IncidentContext(
+            recent_changes=data,
+            active_alerts=data.get("alerts", []),
+            error_patterns=data.get("errors", []),
+            service_health=data.get("anomalies", []),
+            correlation_analysis=correlation_analysis
+        )
+        
+        # Get conversation history
+        history = get_conversation_history(conversation_id)
+        
+        # Check if we should use LLM for this query
+        use_llm = any(keyword in query for keyword in [
+            "analyze", "explain", "why", "how", "what should", "recommend", 
+            "suggest", "help", "understand", "investigate", "troubleshoot"
+        ]) or len(query.split()) > 10  # Use LLM for complex queries
+        
+        if use_llm and llm_service.get_available_providers():
+            # Generate intelligent response using LLM
+            try:
+                llm_response = await llm_service.generate_response(
+                    message.message, context, history
+                )
+                
+                # Add assistant response to history
+                add_to_conversation(conversation_id, "assistant", llm_response.content, {
+                    "llm_provider": llm_response.provider,
+                    "tokens_used": llm_response.tokens_used
+                })
+                
+                # Generate contextual suggestions
+                suggestions = [
+                    "Show me specific error details",
+                    "What are the next steps to resolve this?",
+                    "Check related service dependencies",
+                    "Generate incident summary report"
+                ]
+                
+                return ChatResponse(
+                    response=llm_response.content,
+                    data=data,
+                    suggestions=suggestions,
+                    llm_response=llm_response,
+                    analysis_type="ai_powered"
+                )
+                
+            except Exception as llm_error:
+                logger.error(f"LLM error: {llm_error}")
+                # Fall back to traditional response
+                use_llm = False
+        
+        # Traditional rule-based responses
         if "what changed" in query or "recent changes" in query:
             hours = 2
             if "hour" in query:
-                # Extract hours if specified
                 import re
                 hour_match = re.search(r'(\d+)\s*hours?', query)
                 if hour_match:
                     hours = int(hour_match.group(1))
-            
-            data = await analyzer.query_recent_changes(hours)
-            correlation_analysis = analyzer.analyze_correlation(data)
             
             response = f"## Recent Changes (Last {hours} hours)\n\n"
             response += correlation_analysis + "\n\n"
@@ -208,21 +302,13 @@ async def chat_endpoint(message: ChatMessage):
                     response += f"- **{anomaly['service']}**: {anomaly['metric']} = {anomaly['current_value']} (baseline: {anomaly['baseline']})\n"
             
             suggestions = [
-                "Show me error details for affected services",
-                "Check dependency health",
-                "Analyze error patterns",
+                "Analyze the correlation between deployments and errors",
+                "What should I investigate first?",
+                "Generate incident summary",
                 "Show deployment rollback options"
             ]
             
-            return ChatResponse(
-                response=response,
-                data=data,
-                suggestions=suggestions
-            )
-        
         elif "error" in query and ("detail" in query or "pattern" in query):
-            data = await analyzer.query_recent_changes(2)
-            
             response = "## Error Analysis\n\n"
             
             if data["errors"]:
@@ -235,41 +321,49 @@ async def chat_endpoint(message: ChatMessage):
                 response = "No recent errors detected in the monitored services."
             
             suggestions = [
-                "What changed recently?",
+                "What's causing these errors?",
+                "How can I fix this issue?",
                 "Check service dependencies",
                 "Show related alerts"
             ]
             
-            return ChatResponse(
-                response=response,
-                data=data,
-                suggestions=suggestions
-            )
-        
         else:
-            # Default help response
-            response = """## 🤖 Incident Response Assistant
+            # Enhanced help response
+            llm_status = "🤖 **AI-Powered Analysis Available**" if llm_service.get_available_providers() else "📊 **Rule-Based Analysis**"
+            
+            response = f"""## {llm_status}
 
-I can help you investigate incidents by analyzing your monitoring data. Try asking:
+I can help you investigate incidents by analyzing your monitoring data and providing intelligent insights:
 
-- **"What changed in the last 2 hours?"** - Shows recent deployments, alerts, and anomalies
-- **"Show me error details"** - Analyzes error patterns and frequency  
-- **"What changed since 15:30?"** - Time-specific change analysis
-- **"Check service dependencies"** - Shows service health relationships
+**Smart Analysis:**
+- **"Analyze what changed in the last 2 hours"** - AI-powered correlation analysis
+- **"Why are we seeing these errors?"** - Root cause analysis
+- **"What should I investigate first?"** - Prioritized action recommendations
+- **"Explain this incident impact"** - Business impact assessment
 
-I monitor your Grafana, Prometheus, Elasticsearch, and Nagios systems to correlate changes with issues."""
+**Quick Data:**
+- **"Show me error details"** - Recent error patterns
+- **"Check active alerts"** - Current system alerts
+- **"Recent deployments"** - Latest changes
+
+I monitor your Grafana, Prometheus, Elasticsearch, and Nagios systems."""
             
             suggestions = [
-                "What changed in the last 2 hours?",
-                "Show me error details",
-                "Check active alerts",
-                "Analyze recent deployments"
+                "Analyze what changed in the last 2 hours",
+                "What should I investigate first?",
+                "Show me current system health",
+                "Generate incident summary"
             ]
-            
-            return ChatResponse(
-                response=response,
-                suggestions=suggestions
-            )
+        
+        # Add assistant response to history for traditional responses
+        add_to_conversation(conversation_id, "assistant", response)
+        
+        return ChatResponse(
+            response=response,
+            data=data,
+            suggestions=suggestions,
+            analysis_type="traditional"
+        )
     
     except Exception as e:
         logging.error(f"Error processing chat message: {str(e)}")
