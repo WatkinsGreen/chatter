@@ -48,20 +48,84 @@ A professional chatbot interface for incident response that correlates data from
 
 ### Docker Deployment
 
+#### Quick Start with Docker
+
 ```bash
-# Build and run all services
+# Clone and setup
+git clone <repository-url>
+cd chatter
+
+# Create environment file
+cp .env.example .env
+# Edit .env with your monitoring system URLs and credentials
+
+# Development mode (with live reload)
 docker-compose up --build
 
-# Run in background
-docker-compose up -d --build
+# Production mode (optimized, with nginx)
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
 ```
+
+#### Docker Environment Files
+
+- **`.env.example`** - Template with all configuration options
+- **`.env`** - Your actual environment variables (create from example)
+- **`docker-compose.yml`** - Base configuration  
+- **`docker-compose.override.yml`** - Development overrides (auto-loaded)
+- **`docker-compose.prod.yml`** - Production overrides
+
+#### Docker Commands
+
+```bash
+# Development (with live reload and direct port access)
+docker-compose up --build
+
+# Production (with nginx, health checks, and optimizations)
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+
+# View logs
+docker-compose logs -f [service-name]
+
+# Scale services (production)
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d --scale backend=3 --scale frontend=2
+
+# Health check status
+docker-compose ps
+
+# Stop and cleanup
+docker-compose down -v
+```
+
+#### SSL/HTTPS Setup
+
+For production HTTPS:
+
+1. **Place SSL certificates** in `nginx/ssl/`:
+   ```bash
+   # Self-signed for testing
+   openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+     -keyout nginx/ssl/key.pem -out nginx/ssl/cert.pem
+   
+   # Or copy your real certificates
+   cp your-cert.pem nginx/ssl/cert.pem
+   cp your-key.pem nginx/ssl/key.pem
+   ```
+
+2. **Uncomment HTTPS server block** in `nginx/nginx.conf`
+
+3. **Update domain name** in nginx configuration
 
 ### Access Points
 
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:8000
-- **API Documentation**: http://localhost:8000/docs
-- **Docker (nginx)**: http://localhost (when using docker-compose)
+- **Development**: 
+  - Frontend: http://localhost:3000
+  - Backend API: http://localhost:8000
+  - API Docs: http://localhost:8000/docs
+
+- **Production**:
+  - Application: http://localhost (or your domain)
+  - API: http://localhost/api
+  - Health Check: http://localhost/health
 
 ## Configuration
 

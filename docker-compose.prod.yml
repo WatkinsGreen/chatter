@@ -1,0 +1,46 @@
+# Production configuration for docker-compose
+# Use with: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
+
+version: '3.8'
+
+services:
+  backend:
+    volumes:
+      - ./backend:/app:ro  # Read-only in production
+    environment:
+      - LOG_LEVEL=INFO
+      - PYTHONOPTIMIZE=1
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+  frontend:
+    environment:
+      - NODE_ENV=production
+      - REACT_APP_API_URL=/api
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+  nginx:
+    profiles: []  # Enable nginx in production
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+        reservations:
+          cpus: '0.25'
+          memory: 64M

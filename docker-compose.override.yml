@@ -1,0 +1,26 @@
+# Development override for docker-compose.yml
+# This file is automatically loaded by docker-compose for local development
+
+version: '3.8'
+
+services:
+  backend:
+    volumes:
+      - ./backend:/app  # Enable live reload for development
+    environment:
+      - LOG_LEVEL=DEBUG
+    ports:
+      - "8000:8000"  # Expose backend directly for development
+
+  frontend:
+    volumes:
+      - ./frontend/src:/app/src  # Enable live reload for frontend
+    ports:
+      - "3000:3000"  # Expose frontend directly for development
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+
+  nginx:
+    # Disable nginx in development mode - access services directly
+    profiles:
+      - production
