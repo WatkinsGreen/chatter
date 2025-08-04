@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  
+  body {
+    margin: 0;
+    padding: 0;
+    font-feature-settings: 'cv11', 'ss01';
+    font-variation-settings: 'opsz' 32;
+  }
+}
+
+@layer components {
+  .prose {
+    color: inherit;
+  }
+  
+  .prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
+    color: inherit;
+    margin-top: 0;
+  }
+  
+  .prose p {
+    color: inherit;
+  }
+  
+  .prose strong {
+    color: inherit;
+    font-weight: 600;
+  }
+  
+  .prose code {
+    color: inherit;
+    background-color: rgba(0, 0, 0, 0.05);
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+    font-size: 0.875em;
+  }
+  
+  .prose ul, .prose ol {
+    color: inherit;
+  }
+  
+  .prose li {
+    color: inherit;
+  }
+}

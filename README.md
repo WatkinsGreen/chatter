@@ -16,28 +16,52 @@ A professional chatbot interface for incident response that correlates data from
 - **Frontend**: React with TypeScript, Tailwind CSS, and professional styling
 - **Real-time**: WebSocket-ready architecture for live updates
 
-## Quick Start
+## Installation & Setup
 
-### Backend Setup
+### Prerequisites
+
+- Python 3.11+ 
+- Node.js 18+
+- npm or yarn
+
+### Local Development
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd chatter
+   ```
+
+2. **Backend Setup**
+   ```bash
+   cd backend
+   pip install -r requirements.txt
+   uvicorn main:app --reload --host 0.0.0.0 --port 8000
+   ```
+
+3. **Frontend Setup** (in a new terminal)
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
+
+### Docker Deployment
 
 ```bash
-cd backend
-pip install -r requirements.txt
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+# Build and run all services
+docker-compose up --build
+
+# Run in background
+docker-compose up -d --build
 ```
 
-### Frontend Setup
+### Access Points
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-The application will be available at:
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8000
-- API Docs: http://localhost:8000/docs
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8000
+- **API Documentation**: http://localhost:8000/docs
+- **Docker (nginx)**: http://localhost (when using docker-compose)
 
 ## Configuration
 
