@@ -9,6 +9,10 @@ from enum import Enum
 import openai
 import anthropic
 import tiktoken
+from azure.ai.inference import ChatCompletionsClient
+from azure.ai.inference.models import SystemMessage, UserMessage, AssistantMessage
+from azure.identity import DefaultAzureCredential, AzureCliCredential
+from azure.core.credentials import AzureKeyCredential
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -16,6 +20,7 @@ logger = logging.getLogger(__name__)
 class LLMProvider(str, Enum):
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
+    AZURE_OPENAI = "azure_openai"
 
 class ConversationMessage(BaseModel):
     role: str
@@ -40,21 +45,54 @@ class IncidentContext(BaseModel):
 
 class LLMService:
     def __init__(self):
+        # OpenAI Configuration
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
-        self.anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
-        self.default_provider = os.getenv("LLM_PROVIDER", "openai").lower()
         self.openai_model = os.getenv("OPENAI_MODEL", "gpt-4-turbo-preview")
+        
+        # Anthropic Configuration
+        self.anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
         self.anthropic_model = os.getenv("ANTHROPIC_MODEL", "claude-3-sonnet-20240229")
+        
+        # Azure OpenAI Configuration
+        self.azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+        self.azure_api_key = os.getenv("AZURE_OPENAI_KEY")
+        self.azure_deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4")
+        self.azure_api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-01")
+        
+        self.default_provider = os.getenv("LLM_PROVIDER", "azure_openai").lower()
         
         # Initialize clients
         self.openai_client = None
         self.anthropic_client = None
+        self.azure_client = None
         
         if self.openai_api_key:
             self.openai_client = openai.AsyncOpenAI(api_key=self.openai_api_key)
             
         if self.anthropic_api_key:
             self.anthropic_client = anthropic.AsyncAnthropic(api_key=self.anthropic_api_key)
+        
+        # Initialize Azure OpenAI client
+        if self.azure_endpoint:
+            try:
+                if self.azure_api_key:
+                    # Use API key authentication
+                    credential = AzureKeyCredential(self.azure_api_key)
+                else:
+                    # Use Azure CLI or managed identity authentication
+                    try:
+                        credential = AzureCliCredential()
+                    except:
+                        credential = DefaultAzureCredential()
+                
+                self.azure_client = ChatCompletionsClient(
+                    endpoint=self.azure_endpoint,
+                    credential=credential
+                )
+                logger.info("Azure OpenAI client initialized successfully")
+            except Exception as e:
+                logger.error(f"Failed to initialize Azure OpenAI client: {e}")
+                self.azure_client = None
         
         # Token counting
         try:
@@ -199,6 +237,58 @@ Context provided:
             logger.error(f"Anthropic API error: {e}")
             raise
     
+    async def generate_response_azure_openai(self, prompt: str, conversation_history: List[ConversationMessage]) -> LLMResponse:
+        """Generate response using Azure OpenAI"""
+        if not self.azure_client:
+            raise ValueError("Azure OpenAI not configured")
+        
+        start_time = datetime.now()
+        
+        # Build messages for Azure OpenAI
+        messages = [SystemMessage(content=prompt)]
+        
+        # Add conversation history (last 10 messages to stay within limits)
+        for msg in conversation_history[-10:]:
+            if msg.role == "user":
+                messages.append(UserMessage(content=msg.content))
+            else:
+                messages.append(AssistantMessage(content=msg.content))
+        
+        try:
+            response = await asyncio.to_thread(
+                self.azure_client.complete,
+                messages=messages,
+                model=self.azure_deployment,
+                temperature=0.3,
+                max_tokens=2000,
+                top_p=0.9,
+                frequency_penalty=0.1,
+                presence_penalty=0.1
+            )
+            
+            processing_time = (datetime.now() - start_time).total_seconds() * 1000
+            
+            # Extract response content
+            content = response.choices[0].message.content
+            tokens_used = getattr(response.usage, 'total_tokens', 0) if hasattr(response, 'usage') else 0
+            
+            # Estimate tokens if not provided
+            if tokens_used == 0:
+                total_text = prompt + "".join([msg.content for msg in conversation_history[-10:]]) + content
+                tokens_used = self.count_tokens(total_text)
+            
+            return LLMResponse(
+                content=content,
+                provider="azure_openai",
+                model=self.azure_deployment,
+                tokens_used=tokens_used,
+                processing_time_ms=int(processing_time)
+            )
+            
+        except Exception as e:
+            logger.error(f"Azure OpenAI API error: {e}")
+            raise
+    
     async def generate_response(self, user_query: str, context: IncidentContext, 
                               conversation_history: List[ConversationMessage], 
                               provider: Optional[str] = None) -> LLMResponse:
@@ -211,18 +301,22 @@ Context provided:
         prompt = self.create_incident_prompt(user_query, context)
         
         # Generate response based on provider
-        if selected_provider == "openai" and self.openai_client:
+        if selected_provider == "azure_openai" and self.azure_client:
+            return await self.generate_response_azure_openai(prompt, conversation_history)
+        elif selected_provider == "openai" and self.openai_client:
             return await self.generate_response_openai(prompt, conversation_history)
         elif selected_provider == "anthropic" and self.anthropic_client:
             return await self.generate_response_anthropic(prompt, conversation_history)
         else:
-            # Fallback logic
-            if self.openai_client:
+            # Fallback logic - prioritize Azure OpenAI
+            if self.azure_client:
+                return await self.generate_response_azure_openai(prompt, conversation_history)
+            elif self.openai_client:
                 return await self.generate_response_openai(prompt, conversation_history)
             elif self.anthropic_client:
                 return await self.generate_response_anthropic(prompt, conversation_history)
             else:
-                raise ValueError("No LLM provider configured. Please set OPENAI_API_KEY or ANTHROPIC_API_KEY")
+                raise ValueError("No LLM provider configured. Please set AZURE_OPENAI_ENDPOINT, OPENAI_API_KEY, or ANTHROPIC_API_KEY")
     
     async def generate_streaming_response(self, user_query: str, context: IncidentContext,
                                         conversation_history: List[ConversationMessage],
@@ -284,6 +378,8 @@ Context provided:
     def get_available_providers(self) -> List[str]:
         """Get list of available LLM providers"""
         providers = []
+        if self.azure_client:
+            providers.append("azure_openai")
         if self.openai_client:
             providers.append("openai")
         if self.anthropic_client:

@@ -137,7 +137,20 @@ For production HTTPS:
 
 ### LLM Configuration (Required for AI Features)
 
-Choose one or both LLM providers:
+#### Azure OpenAI (Recommended)
+
+For enterprise deployments with enhanced security and compliance:
+
+```bash
+# Azure OpenAI Configuration
+export AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com/"
+export AZURE_OPENAI_KEY="your-azure-openai-key"
+export AZURE_OPENAI_DEPLOYMENT="gpt-4"  # Your deployment name
+export AZURE_OPENAI_API_VERSION="2024-02-01"
+export LLM_PROVIDER="azure_openai"
+```
+
+#### Alternative Providers (Optional)
 
 ```bash
 # OpenAI Configuration
@@ -148,9 +161,15 @@ export OPENAI_MODEL="gpt-4-turbo-preview"  # or gpt-4, gpt-3.5-turbo
 export ANTHROPIC_API_KEY="your-anthropic-api-key"
 export ANTHROPIC_MODEL="claude-3-sonnet-20240229"  # or claude-3-opus-20240229
 
-# Default LLM Provider
+# Provider Selection
 export LLM_PROVIDER="openai"  # or "anthropic"
 ```
+
+#### Azure Authentication Options
+
+1. **API Key** (simplest): Set `AZURE_OPENAI_KEY`
+2. **Azure CLI**: Run `az login` before starting the application
+3. **Managed Identity**: Available when running on Azure infrastructure
 
 ### Monitoring Systems Configuration
 
@@ -216,6 +235,7 @@ The system is designed to be easily extended:
 ## LLM Integration Details
 
 ### Supported Providers
+- **Azure OpenAI**: GPT-4, GPT-4 Turbo, GPT-3.5 Turbo (Enterprise-grade with enhanced security)
 - **OpenAI**: GPT-4, GPT-4 Turbo, GPT-3.5 Turbo
 - **Anthropic**: Claude-3 Opus, Claude-3 Sonnet, Claude-3 Haiku
 
