@@ -245,27 +245,33 @@ async def chat_endpoint(message: ChatMessage):
                     message.message, context, history
                 )
                 
-                # Add assistant response to history
-                add_to_conversation(conversation_id, "assistant", llm_response.content, {
-                    "llm_provider": llm_response.provider,
-                    "tokens_used": llm_response.tokens_used
-                })
-                
-                # Generate contextual suggestions
-                suggestions = [
-                    "Show me specific error details",
-                    "What are the next steps to resolve this?",
-                    "Check related service dependencies",
-                    "Generate incident summary report"
-                ]
-                
-                return ChatResponse(
-                    response=llm_response.content,
-                    data=data,
-                    suggestions=suggestions,
-                    llm_response=llm_response,
-                    analysis_type="ai_powered"
-                )
+                # Check if LLM response was successful
+                if llm_response:
+                    # Add assistant response to history
+                    add_to_conversation(conversation_id, "assistant", llm_response.content, {
+                        "llm_provider": llm_response.provider,
+                        "tokens_used": llm_response.tokens_used
+                    })
+                    
+                    # Generate contextual suggestions
+                    suggestions = [
+                        "Show me specific error details",
+                        "What are the next steps to resolve this?",
+                        "Check related service dependencies",
+                        "Generate incident summary report"
+                    ]
+                    
+                    return ChatResponse(
+                        response=llm_response.content,
+                        data=data,
+                        suggestions=suggestions,
+                        llm_response=llm_response,
+                        analysis_type="ai_powered"
+                    )
+                else:
+                    # LLM not available, fall back to traditional response
+                    logger.info("LLM returned None, falling back to traditional response")
+                    use_llm = False
                 
             except Exception as llm_error:
                 logger.error(f"LLM error: {llm_error}")

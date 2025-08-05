@@ -185,28 +185,32 @@ Context provided:
     
     async def generate_response(self, user_query: str, context: IncidentContext, 
                               conversation_history: List[ConversationMessage], 
-                              provider: Optional[str] = None) -> LLMResponse:
-        """Generate intelligent response based on incident context using Azure OpenAI"""
+                              provider: Optional[str] = None) -> Optional[LLMResponse]:
+        """Generate intelligent response based on incident context using Azure OpenAI (optional)"""
         
-        # Create specialized prompt
-        prompt = self.create_incident_prompt(user_query, context)
-        
-        # Use Azure OpenAI
+        # Use Azure OpenAI if available
         if self.azure_client:
-            return await self.generate_response_azure_openai(prompt, conversation_history)
+            try:
+                # Create specialized prompt
+                prompt = self.create_incident_prompt(user_query, context)
+                return await self.generate_response_azure_openai(prompt, conversation_history)
+            except Exception as e:
+                logger.error(f"Azure OpenAI failed, falling back to traditional response: {e}")
+                return None
         else:
-            raise ValueError("Azure OpenAI not configured. Please set AZURE_OPENAI_ENDPOINT and authentication.")
+            logger.info("Azure OpenAI not configured, will use traditional responses only")
+            return None
     
     async def generate_streaming_response(self, user_query: str, context: IncidentContext,
                                         conversation_history: List[ConversationMessage],
                                         provider: Optional[str] = None) -> AsyncGenerator[str, None]:
-        """Generate streaming response for real-time experience using Azure OpenAI"""
-        
-        prompt = self.create_incident_prompt(user_query, context)
+        """Generate streaming response for real-time experience using Azure OpenAI (optional)"""
         
         if not self.azure_client:
-            yield "Azure OpenAI not configured. Please set AZURE_OPENAI_ENDPOINT and authentication."
+            yield "Azure OpenAI not configured. Using traditional response mode only."
             return
+        
+        prompt = self.create_incident_prompt(user_query, context)
         
         # Build messages for Azure OpenAI
         messages = [SystemMessage(content=prompt)]
@@ -254,7 +258,11 @@ Context provided:
         summary_query = "Provide a concise executive summary of this incident including impact, root cause hypothesis, and recommended next steps."
         
         response = await self.generate_response(summary_query, context, [])
-        return response.content
+        if response:
+            return response.content
+        else:
+            # Fallback to traditional summary when Azure OpenAI is not available
+            return "Azure OpenAI not configured. Please review the incident data manually for analysis."
 
 # Global LLM service instance
 llm_service = LLMService()
