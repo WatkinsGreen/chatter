@@ -4,7 +4,7 @@ A professional chatbot interface for incident response that correlates data from
 
 ## Features
 
-- **🤖 AI-Powered Analysis**: OpenAI GPT-4 and Anthropic Claude integration for intelligent incident analysis
+- **🤖 AI-Powered Analysis**: Azure OpenAI GPT-4 integration for intelligent incident analysis
 - **💬 Natural Language Queries**: Ask complex questions like "Why are we seeing these errors?" or "What should I investigate first?"
 - **🧠 Context-Aware Responses**: Maintains conversation history and builds on previous interactions
 - **🔄 Real-time Analysis**: Queries multiple monitoring systems simultaneously
@@ -16,9 +16,9 @@ A professional chatbot interface for incident response that correlates data from
 
 ## Architecture
 
-- **Backend**: FastAPI with async connectors for monitoring systems and LLM integration
+- **Backend**: FastAPI with async connectors for monitoring systems and Azure OpenAI integration
 - **Frontend**: React with TypeScript, Tailwind CSS, and professional styling
-- **AI Layer**: OpenAI/Anthropic integration with specialized incident response prompts
+- **AI Layer**: Azure OpenAI integration with specialized incident response prompts
 - **Memory**: Conversation persistence and context management
 - **Real-time**: WebSocket-ready architecture for live updates and streaming responses
 
@@ -137,7 +137,7 @@ For production HTTPS:
 
 ### LLM Configuration (Required for AI Features)
 
-#### Azure OpenAI (Recommended)
+#### Azure OpenAI
 
 For enterprise deployments with enhanced security and compliance:
 
@@ -147,22 +147,6 @@ export AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com/"
 export AZURE_OPENAI_KEY="your-azure-openai-key"
 export AZURE_OPENAI_DEPLOYMENT="gpt-4"  # Your deployment name
 export AZURE_OPENAI_API_VERSION="2024-02-01"
-export LLM_PROVIDER="azure_openai"
-```
-
-#### Alternative Providers (Optional)
-
-```bash
-# OpenAI Configuration
-export OPENAI_API_KEY="your-openai-api-key"
-export OPENAI_MODEL="gpt-4-turbo-preview"  # or gpt-4, gpt-3.5-turbo
-
-# Anthropic Configuration  
-export ANTHROPIC_API_KEY="your-anthropic-api-key"
-export ANTHROPIC_MODEL="claude-3-sonnet-20240229"  # or claude-3-opus-20240229
-
-# Provider Selection
-export LLM_PROVIDER="openai"  # or "anthropic"
 ```
 
 #### Azure Authentication Options
@@ -234,23 +218,20 @@ The system is designed to be easily extended:
 
 ## LLM Integration Details
 
-### Supported Providers
+### Supported Provider
 - **Azure OpenAI**: GPT-4, GPT-4 Turbo, GPT-3.5 Turbo (Enterprise-grade with enhanced security)
-- **OpenAI**: GPT-4, GPT-4 Turbo, GPT-3.5 Turbo
-- **Anthropic**: Claude-3 Opus, Claude-3 Sonnet, Claude-3 Haiku
 
 ### AI Features
 - **Specialized Prompts**: Incident response expert persona with monitoring context
 - **Context Injection**: Automatically includes recent changes, alerts, and correlations
 - **Conversation Memory**: Maintains context across multiple interactions
 - **Smart Routing**: Automatically chooses AI vs traditional responses
-- **Fallback Handling**: Graceful degradation when LLM APIs are unavailable
+- **Fallback Handling**: Graceful degradation when Azure OpenAI is unavailable
 - **Token Management**: Automatic token counting and conversation truncation
 
 ### Cost Optimization
 - Intelligent query routing reduces unnecessary LLM calls
 - Conversation history truncation keeps token usage reasonable
-- Provider selection allows cost vs quality optimization
 - Fallback to traditional responses when LLM isn't needed
 
 ## Production Deployment
@@ -273,7 +254,7 @@ Comprehensive visual documentation is available in the [`docs/`](./docs/) direct
 
 ### Key Diagrams
 - 🏗️ [System Overview](./docs/architecture-diagrams.md#system-overview) - High-level architecture with Azure OpenAI
-- 🤖 [LLM Integration Flow](./docs/architecture-diagrams.md#llm-integration-flow) - AI processing workflow (Azure/OpenAI/Anthropic)
+- 🤖 [LLM Integration Flow](./docs/architecture-diagrams.md#llm-integration-flow) - AI processing workflow (Azure OpenAI)
 - 🐳 [Docker Architecture](./docs/architecture-diagrams.md#docker-architecture) - Container deployment
 - 🔄 [Request Flow](./docs/architecture-diagrams.md#request-flow-architecture) - API interaction sequence
 - 📁 [File Structure](./docs/architecture-diagrams.md#file-structure-diagram) - Project organization

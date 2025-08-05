@@ -4,10 +4,7 @@ import asyncio
 from typing import List, Dict, Any, Optional, AsyncGenerator
 from datetime import datetime
 import logging
-from enum import Enum
 
-import openai
-import anthropic
 import tiktoken
 from azure.ai.inference import ChatCompletionsClient
 from azure.ai.inference.models import SystemMessage, UserMessage, AssistantMessage
@@ -16,11 +13,6 @@ from azure.core.credentials import AzureKeyCredential
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
-
-class LLMProvider(str, Enum):
-    OPENAI = "openai"
-    ANTHROPIC = "anthropic"
-    AZURE_OPENAI = "azure_openai"
 
 class ConversationMessage(BaseModel):
     role: str
@@ -45,34 +37,14 @@ class IncidentContext(BaseModel):
 
 class LLMService:
     def __init__(self):
-        # OpenAI Configuration
-        self.openai_api_key = os.getenv("OPENAI_API_KEY")
-        self.openai_model = os.getenv("OPENAI_MODEL", "gpt-4-turbo-preview")
-        
-        # Anthropic Configuration
-        self.anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
-        self.anthropic_model = os.getenv("ANTHROPIC_MODEL", "claude-3-sonnet-20240229")
-        
         # Azure OpenAI Configuration
         self.azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
         self.azure_api_key = os.getenv("AZURE_OPENAI_KEY")
         self.azure_deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4")
         self.azure_api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-01")
         
-        self.default_provider = os.getenv("LLM_PROVIDER", "azure_openai").lower()
-        
-        # Initialize clients
-        self.openai_client = None
-        self.anthropic_client = None
-        self.azure_client = None
-        
-        if self.openai_api_key:
-            self.openai_client = openai.AsyncOpenAI(api_key=self.openai_api_key)
-            
-        if self.anthropic_api_key:
-            self.anthropic_client = anthropic.AsyncAnthropic(api_key=self.anthropic_api_key)
-        
         # Initialize Azure OpenAI client
+        self.azure_client = None
         if self.azure_endpoint:
             try:
                 if self.azure_api_key:
@@ -93,6 +65,8 @@ class LLMService:
             except Exception as e:
                 logger.error(f"Failed to initialize Azure OpenAI client: {e}")
                 self.azure_client = None
+        else:
+            logger.error("AZURE_OPENAI_ENDPOINT not configured")
         
         # Token counting
         try:
@@ -156,86 +130,6 @@ Context provided:
         
         return full_prompt
     
-    async def generate_response_openai(self, prompt: str, conversation_history: List[ConversationMessage]) -> LLMResponse:
-        """Generate response using OpenAI"""
-        if not self.openai_client:
-            raise ValueError("OpenAI API key not configured")
-        
-        start_time = datetime.now()
-        
-        # Build messages
-        messages = [{"role": "system", "content": prompt}]
-        
-        # Add conversation history (last 10 messages to stay within limits)
-        for msg in conversation_history[-10:]:
-            messages.append({"role": msg.role, "content": msg.content})
-        
-        try:
-            response = await self.openai_client.chat.completions.create(
-                model=self.openai_model,
-                messages=messages,
-                temperature=0.3,  # Lower temperature for more focused responses
-                max_tokens=2000,
-                top_p=0.9,
-                frequency_penalty=0.1,
-                presence_penalty=0.1
-            )
-            
-            processing_time = (datetime.now() - start_time).total_seconds() * 1000
-            
-            return LLMResponse(
-                content=response.choices[0].message.content,
-                provider="openai",
-                model=self.openai_model,
-                tokens_used=response.usage.total_tokens,
-                processing_time_ms=int(processing_time)
-            )
-            
-        except Exception as e:
-            logger.error(f"OpenAI API error: {e}")
-            raise
-    
-    async def generate_response_anthropic(self, prompt: str, conversation_history: List[ConversationMessage]) -> LLMResponse:
-        """Generate response using Anthropic Claude"""
-        if not self.anthropic_client:
-            raise ValueError("Anthropic API key not configured")
-        
-        start_time = datetime.now()
-        
-        # Build conversation for Claude
-        messages = []
-        for msg in conversation_history[-10:]:  # Last 10 messages
-            messages.append({
-                "role": "user" if msg.role == "user" else "assistant",
-                "content": msg.content
-            })
-        
-        try:
-            response = await self.anthropic_client.messages.create(
-                model=self.anthropic_model,
-                max_tokens=2000,
-                temperature=0.3,
-                system=prompt,
-                messages=messages
-            )
-            
-            processing_time = (datetime.now() - start_time).total_seconds() * 1000
-            
-            # Estimate tokens (Anthropic doesn't always provide exact counts)
-            total_text = prompt + "".join([msg.content for msg in messages]) + response.content[0].text
-            estimated_tokens = self.count_tokens(total_text)
-            
-            return LLMResponse(
-                content=response.content[0].text,
-                provider="anthropic", 
-                model=self.anthropic_model,
-                tokens_used=estimated_tokens,
-                processing_time_ms=int(processing_time)
-            )
-            
-        except Exception as e:
-            logger.error(f"Anthropic API error: {e}")
-            raise
     
     async def generate_response_azure_openai(self, prompt: str, conversation_history: List[ConversationMessage]) -> LLMResponse:
         """Generate response using Azure OpenAI"""
@@ -292,98 +186,58 @@ Context provided:
     async def generate_response(self, user_query: str, context: IncidentContext, 
                               conversation_history: List[ConversationMessage], 
                               provider: Optional[str] = None) -> LLMResponse:
-        """Generate intelligent response based on incident context"""
-        
-        # Choose provider
-        selected_provider = provider or self.default_provider
+        """Generate intelligent response based on incident context using Azure OpenAI"""
         
         # Create specialized prompt
         prompt = self.create_incident_prompt(user_query, context)
         
-        # Generate response based on provider
-        if selected_provider == "azure_openai" and self.azure_client:
+        # Use Azure OpenAI
+        if self.azure_client:
             return await self.generate_response_azure_openai(prompt, conversation_history)
-        elif selected_provider == "openai" and self.openai_client:
-            return await self.generate_response_openai(prompt, conversation_history)
-        elif selected_provider == "anthropic" and self.anthropic_client:
-            return await self.generate_response_anthropic(prompt, conversation_history)
         else:
-            # Fallback logic - prioritize Azure OpenAI
-            if self.azure_client:
-                return await self.generate_response_azure_openai(prompt, conversation_history)
-            elif self.openai_client:
-                return await self.generate_response_openai(prompt, conversation_history)
-            elif self.anthropic_client:
-                return await self.generate_response_anthropic(prompt, conversation_history)
-            else:
-                raise ValueError("No LLM provider configured. Please set AZURE_OPENAI_ENDPOINT, OPENAI_API_KEY, or ANTHROPIC_API_KEY")
+            raise ValueError("Azure OpenAI not configured. Please set AZURE_OPENAI_ENDPOINT and authentication.")
     
     async def generate_streaming_response(self, user_query: str, context: IncidentContext,
                                         conversation_history: List[ConversationMessage],
                                         provider: Optional[str] = None) -> AsyncGenerator[str, None]:
-        """Generate streaming response for real-time experience"""
+        """Generate streaming response for real-time experience using Azure OpenAI"""
         
-        selected_provider = provider or self.default_provider
         prompt = self.create_incident_prompt(user_query, context)
         
-        if selected_provider == "openai" and self.openai_client:
-            messages = [{"role": "system", "content": prompt}]
-            for msg in conversation_history[-10:]:
-                messages.append({"role": msg.role, "content": msg.content})
+        if not self.azure_client:
+            yield "Azure OpenAI not configured. Please set AZURE_OPENAI_ENDPOINT and authentication."
+            return
+        
+        # Build messages for Azure OpenAI
+        messages = [SystemMessage(content=prompt)]
+        for msg in conversation_history[-10:]:
+            if msg.role == "user":
+                messages.append(UserMessage(content=msg.content))
+            else:
+                messages.append(AssistantMessage(content=msg.content))
+        
+        try:
+            # Note: Azure AI Inference may not support streaming yet
+            # Fall back to regular response and yield it in chunks
+            response = await self.generate_response_azure_openai(prompt, conversation_history)
             
-            try:
-                stream = await self.openai_client.chat.completions.create(
-                    model=self.openai_model,
-                    messages=messages,
-                    temperature=0.3,
-                    max_tokens=2000,
-                    stream=True
-                )
+            # Simulate streaming by yielding response in chunks
+            content = response.content
+            chunk_size = 50  # Characters per chunk
+            for i in range(0, len(content), chunk_size):
+                chunk = content[i:i + chunk_size]
+                yield chunk
+                await asyncio.sleep(0.01)  # Small delay for streaming effect
                 
-                async for chunk in stream:
-                    if chunk.choices[0].delta.content:
-                        yield chunk.choices[0].delta.content
-                        
-            except Exception as e:
-                logger.error(f"OpenAI streaming error: {e}")
-                yield f"Error generating response: {str(e)}"
-        
-        elif selected_provider == "anthropic" and self.anthropic_client:
-            # Anthropic streaming implementation
-            messages = []
-            for msg in conversation_history[-10:]:
-                messages.append({
-                    "role": "user" if msg.role == "user" else "assistant",
-                    "content": msg.content
-                })
-            
-            try:
-                async with self.anthropic_client.messages.stream(
-                    model=self.anthropic_model,
-                    max_tokens=2000,
-                    temperature=0.3,
-                    system=prompt,
-                    messages=messages
-                ) as stream:
-                    async for text in stream.text_stream:
-                        yield text
-                        
-            except Exception as e:
-                logger.error(f"Anthropic streaming error: {e}")
-                yield f"Error generating response: {str(e)}"
-        
-        else:
-            yield "No LLM provider available. Please configure OPENAI_API_KEY or ANTHROPIC_API_KEY."
+        except Exception as e:
+            logger.error(f"Azure OpenAI streaming error: {e}")
+            yield f"Error generating response: {str(e)}"
     
     def get_available_providers(self) -> List[str]:
         """Get list of available LLM providers"""
         providers = []
         if self.azure_client:
             providers.append("azure_openai")
-        if self.openai_client:
-            providers.append("openai")
-        if self.anthropic_client:
-            providers.append("anthropic")
         return providers
     
     async def analyze_incident_summary(self, incident_data: Dict[str, Any]) -> str:
