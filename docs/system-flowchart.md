@@ -22,11 +22,13 @@ flowchart TD
     Context --> Memory[💭 Get Conversation History]
     Memory --> Provider{🔀 Select AI Provider}
     
+    Provider -->|Azure OpenAI| AzureGPT[🏢 Generate Azure GPT Response]
     Provider -->|OpenAI| GPT[🧠 Generate GPT Response]
     Provider -->|Anthropic| Claude[🎭 Generate Claude Response]
     Provider -->|Error| Monitor
     
-    GPT --> AI_Response[🤖 AI Analysis Ready]
+    AzureGPT --> AI_Response[🤖 AI Analysis Ready]
+    GPT --> AI_Response
     Claude --> AI_Response
     Format --> Traditional_Response[📊 Traditional Response Ready]
     Help --> Help_Response[❓ Help Response Ready]
@@ -111,14 +113,17 @@ flowchart TD
     Available -->|Yes| ChooseProvider{🔀 Which Provider?}
     Available -->|No| Fallback[⬇️ Fallback to Traditional]
     
-    ChooseProvider -->|Default: OpenAI| OpenAI[🧠 Use GPT-4]
-    ChooseProvider -->|Configured: Anthropic| Anthropic[🎭 Use Claude]
-    ChooseProvider -->|Both Available| Smart{🧠 Smart Selection}
+    ChooseProvider -->|Default: Azure OpenAI| AzureOpenAI[🏢 Use Azure GPT-4]
+    ChooseProvider -->|Fallback: OpenAI| OpenAI[🧠 Use GPT-4]
+    ChooseProvider -->|Alternative: Anthropic| Anthropic[🎭 Use Claude]
+    ChooseProvider -->|Multiple Available| Smart{🧠 Smart Selection}
     
-    Smart -->|Complex Query| OpenAI
+    Smart -->|Enterprise/Security| AzureOpenAI
+    Smart -->|Cost Sensitive| OpenAI
     Smart -->|Balanced Query| Anthropic
     
-    OpenAI --> Success{✅ Success?}
+    AzureOpenAI --> Success{✅ Success?}
+    OpenAI --> Success
     Anthropic --> Success
     Traditional --> Response[📤 Generate Response]
     Fallback --> Response

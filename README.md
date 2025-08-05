@@ -272,10 +272,11 @@ Comprehensive visual documentation is available in the [`docs/`](./docs/) direct
 - **[Documentation Guide](./docs/README.md)** - Quick navigation to all diagrams
 
 ### Key Diagrams
-- 🏗️ [System Overview](./docs/architecture-diagrams.md#system-overview) - High-level architecture
-- 🤖 [LLM Integration Flow](./docs/architecture-diagrams.md#llm-integration-flow) - AI processing workflow
+- 🏗️ [System Overview](./docs/architecture-diagrams.md#system-overview) - High-level architecture with Azure OpenAI
+- 🤖 [LLM Integration Flow](./docs/architecture-diagrams.md#llm-integration-flow) - AI processing workflow (Azure/OpenAI/Anthropic)
 - 🐳 [Docker Architecture](./docs/architecture-diagrams.md#docker-architecture) - Container deployment
 - 🔄 [Request Flow](./docs/architecture-diagrams.md#request-flow-architecture) - API interaction sequence
 - 📁 [File Structure](./docs/architecture-diagrams.md#file-structure-diagram) - Project organization
+- 🏢 [Azure OpenAI Setup](./docs/azure-setup.md) - Enterprise deployment guide
 
 All diagrams use Mermaid syntax and render automatically on GitHub! 🎯

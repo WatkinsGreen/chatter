@@ -9,8 +9,9 @@ graph TB
     Nginx --> API[🚀 FastAPI Backend]
     
     API --> LLM[🤖 LLM Service]
-    LLM --> OpenAI[OpenAI GPT-4]
-    LLM --> Anthropic[Anthropic Claude]
+    LLM --> AzureAI[🏢 Azure OpenAI]
+    LLM --> OpenAI[🧠 OpenAI GPT-4]
+    LLM --> Anthropic[🎭 Anthropic Claude]
     
     API --> Monitor[📊 Monitoring Connectors]
     Monitor --> Grafana[📈 Grafana]
@@ -23,6 +24,7 @@ graph TB
     
     style User fill:#e1f5fe
     style LLM fill:#f3e5f5
+    style AzureAI fill:#0078d4,color:#fff
     style Monitor fill:#e8f5e8
 ```
 
@@ -78,9 +80,12 @@ flowchart TD
     Context --> History[💭 Get Conversation History]
     History --> Provider{🔀 Choose Provider}
     
+    Provider -->|Azure OpenAI| AzureGPT[🏢 Azure GPT-4 Analysis]
     Provider -->|OpenAI| GPT[🧠 GPT-4 Analysis]
     Provider -->|Anthropic| Claude[🎭 Claude Analysis]
     Provider -->|Fallback| Traditional
+    
+    AzureGPT --> Response[📤 AI Response]
     
     GPT --> Response[📤 AI Response]
     Claude --> Response
@@ -113,7 +118,7 @@ graph TB
     end
     
     subgraph "🌍 External Services"
-        LLM_EXT[🤖 LLM APIs<br/>OpenAI/Anthropic]
+        LLM_EXT[🤖 LLM APIs<br/>Azure OpenAI/OpenAI/Anthropic]
         MON_EXT[📊 Monitoring<br/>Grafana/Prometheus/etc]
     end
     
@@ -290,6 +295,7 @@ graph TB
     end
     
     subgraph "🤖 AI Layer"
+        AzureClient[🏢 Azure OpenAI Client]
         OpenAIClient[🧠 OpenAI Client]
         AnthropicClient[🎭 Anthropic Client]
         PromptEngine[📝 Prompt Engine]
@@ -315,6 +321,7 @@ graph TB
     ChatEndpoint --> IncidentAnalyzer
     ChatEndpoint --> ConversationMemory
     
+    LLMService --> AzureClient
     LLMService --> OpenAIClient
     LLMService --> AnthropicClient
     LLMService --> PromptEngine
@@ -328,6 +335,7 @@ graph TB
     
     style App fill:#2196f3,color:#fff
     style LLMService fill:#9c27b0,color:#fff
+    style AzureClient fill:#0078d4,color:#fff
     style OpenAIClient fill:#00c853,color:#fff
     style AnthropicClient fill:#ff6d00,color:#fff
 ```
@@ -355,6 +363,7 @@ graph TB
         end
         
         subgraph "🤖 External AI Services"
+            AzureOpenAI[🏢 Azure OpenAI]
             OpenAI[🧠 OpenAI API]
             Anthropic[🎭 Anthropic API]
         end
@@ -380,14 +389,18 @@ graph TB
     B3 --> E
     B3 --> N
     
+    B1 --> AzureOpenAI
     B1 --> OpenAI
     B1 --> Anthropic
+    B2 --> AzureOpenAI
     B2 --> OpenAI
     B2 --> Anthropic
+    B3 --> AzureOpenAI
     B3 --> OpenAI
     B3 --> Anthropic
     
     style LB fill:#ff9800,color:#fff
+    style AzureOpenAI fill:#0078d4,color:#fff
     style OpenAI fill:#00c853,color:#fff
     style Anthropic fill:#ff6d00,color:#fff
 ```

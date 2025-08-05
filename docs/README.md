@@ -6,15 +6,24 @@ This directory contains comprehensive documentation and diagrams for the Inciden
 
 ### [Architecture Diagrams](./architecture-diagrams.md)
 Complete visual overview of the system architecture including:
-- **System Overview** - High-level component relationships
+- **System Overview** - High-level component relationships with Azure OpenAI integration
 - **Request Flow Architecture** - Sequence diagrams showing request/response flow
-- **LLM Integration Flow** - AI processing workflow
+- **LLM Integration Flow** - AI processing workflow (Azure OpenAI, OpenAI, Anthropic)
 - **Docker Architecture** - Containerized deployment structure
 - **File Structure Diagram** - Project organization
 - **Data Flow Diagram** - Information flow between components
 - **Conversation Flow** - State machine for chat interactions
-- **Component Architecture** - Detailed component relationships
-- **Deployment Architecture** - Production deployment topology
+- **Component Architecture** - Detailed component relationships with AI clients
+- **Deployment Architecture** - Production deployment topology with enterprise AI
+
+### [Azure OpenAI Setup Guide](./azure-setup.md)
+Enterprise-grade AI deployment with Azure OpenAI including:
+- **Resource Creation** - Step-by-step Azure OpenAI deployment
+- **Model Deployment** - GPT-4 configuration and scaling
+- **Authentication Options** - API key, Azure CLI, Managed Identity
+- **Security Configuration** - Network isolation and compliance
+- **Cost Management** - Usage monitoring and optimization
+- **Production Checklist** - Enterprise deployment requirements
 
 ### [System Flowcharts](./system-flowchart.md)
 Detailed process flows and decision trees:
@@ -29,9 +38,9 @@ Detailed process flows and decision trees:
 
 | Diagram Type | Best For | Location |
 |--------------|----------|----------|
-| 🏗️ **System Overview** | Understanding overall architecture | [architecture-diagrams.md](./architecture-diagrams.md#system-overview) |
+| 🏗️ **System Overview** | Understanding overall architecture with Azure OpenAI | [architecture-diagrams.md](./architecture-diagrams.md#system-overview) |
 | 🔄 **Request Flow** | Debugging API interactions | [architecture-diagrams.md](./architecture-diagrams.md#request-flow-architecture) |
-| 🤖 **LLM Integration** | Understanding AI processing | [architecture-diagrams.md](./architecture-diagrams.md#llm-integration-flow) |
+| 🤖 **LLM Integration** | Understanding AI processing (Azure/OpenAI/Anthropic) | [architecture-diagrams.md](./architecture-diagrams.md#llm-integration-flow) |
 | 🐳 **Docker Setup** | Deployment understanding | [architecture-diagrams.md](./architecture-diagrams.md#docker-architecture) |
 | 📁 **File Structure** | Code navigation | [architecture-diagrams.md](./architecture-diagrams.md#file-structure-diagram) |
 | 💬 **Chat Flow** | Frontend development | [system-flowchart.md](./system-flowchart.md#chat-interface-flow) |
