@@ -64,3 +64,51 @@ class MonitoringConfig:
         """Get only enabled monitoring systems"""
         all_systems = MonitoringConfig.get_systems()
         return {name: config for name, config in all_systems.items() if config.get("enabled", True)}
+    
+    @staticmethod
+    def get_api_endpoints() -> Dict[str, Dict[str, str]]:
+        """Get API endpoints for data retrieval from monitoring systems"""
+        return {
+            "grafana": {
+                "api_url": os.getenv("GRAFANA_API_URL", ""),
+                "api_key": os.getenv("GRAFANA_API_KEY", ""),
+                "dashboards_api": os.getenv("GRAFANA_DASHBOARDS_API", ""),
+                "metrics_api": os.getenv("GRAFANA_METRICS_API", ""),
+                "alerts_api": os.getenv("GRAFANA_ALERTS_API", "")
+            },
+            "nagios": {
+                "api_url": os.getenv("NAGIOS_API_URL", ""),
+                "api_user": os.getenv("NAGIOS_API_USER", ""),
+                "api_pass": os.getenv("NAGIOS_API_PASS", ""),
+                "services_api": os.getenv("NAGIOS_SERVICES_API", ""),
+                "hosts_api": os.getenv("NAGIOS_HOSTS_API", "")
+            },
+            "prometheus": {
+                "api_url": os.getenv("PROMETHEUS_API_URL", ""),
+                "query_api": os.getenv("PROMETHEUS_QUERY_API", ""),
+                "rules_api": os.getenv("PROMETHEUS_RULES_API", "")
+            },
+            "elasticsearch": {
+                "api_url": os.getenv("ELASTICSEARCH_API_URL", ""),
+                "search_api": os.getenv("ELASTICSEARCH_SEARCH_API", ""),
+                "indices_api": os.getenv("ELASTICSEARCH_INDICES_API", "")
+            }
+        }
+    
+    @staticmethod 
+    def get_dashboard_routing() -> Dict[str, Dict[str, str]]:
+        """Get dashboard URL patterns for different data types"""
+        return {
+            "grafana": {
+                "deployment_dashboard": os.getenv("GRAFANA_DEPLOYMENT_DASHBOARD", ""),
+                "performance_dashboard": os.getenv("GRAFANA_PERFORMANCE_DASHBOARD", ""),
+                "error_dashboard": os.getenv("GRAFANA_ERROR_DASHBOARD", ""),
+                "infrastructure_dashboard": os.getenv("GRAFANA_INFRASTRUCTURE_DASHBOARD", ""),
+                "custom_dashboard_pattern": os.getenv("GRAFANA_CUSTOM_DASHBOARD_PATTERN", "")
+            },
+            "nagios": {
+                "service_detail_url": os.getenv("NAGIOS_SERVICE_DETAIL_URL", ""),
+                "host_detail_url": os.getenv("NAGIOS_HOST_DETAIL_URL", ""),
+                "tactical_overview": os.getenv("NAGIOS_TACTICAL_OVERVIEW", "")
+            }
+        }

@@ -22,6 +22,7 @@ interface ChatResponse {
 const API_BASE = 'http://10.10.4.15:8000';
 
 function App() {
+  const [conversationId] = useState(() => `conv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -63,7 +64,8 @@ function App() {
     try {
       const response = await axios.post<ChatResponse>(`${API_BASE}/chat`, {
         message: content.trim(),
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        conversation_id: conversationId
       });
 
       const botMessage: Message = {
@@ -188,31 +190,63 @@ function App() {
                 <div className="mt-3 bg-gray-50 rounded-lg p-3 border">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
                     {message.data.deployments && message.data.deployments.length > 0 && (
-                      <div className="bg-white rounded p-2">
-                        <div className="font-medium text-gray-700 mb-1">Deployments</div>
+                      <a 
+                        href={message.data.monitoring_urls?.deployments} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="bg-white rounded p-2 hover:bg-blue-50 hover:shadow-md transition-all cursor-pointer border-l-4 border-blue-500"
+                      >
+                        <div className="font-medium text-gray-700 mb-1 flex items-center">
+                          Deployments
+                          <span className="ml-1 text-blue-500">↗</span>
+                        </div>
                         <div className="text-2xl font-bold text-blue-600">{message.data.deployments.length}</div>
-                      </div>
+                      </a>
                     )}
                     
                     {message.data.alerts && message.data.alerts.length > 0 && (
-                      <div className="bg-white rounded p-2">
-                        <div className="font-medium text-gray-700 mb-1">Active Alerts</div>
+                      <a 
+                        href={message.data.monitoring_urls?.alerts} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="bg-white rounded p-2 hover:bg-red-50 hover:shadow-md transition-all cursor-pointer border-l-4 border-red-500"
+                      >
+                        <div className="font-medium text-gray-700 mb-1 flex items-center">
+                          Active Alerts
+                          <span className="ml-1 text-red-500">↗</span>
+                        </div>
                         <div className="text-2xl font-bold text-red-600">{message.data.alerts.length}</div>
-                      </div>
+                      </a>
                     )}
                     
                     {message.data.anomalies && message.data.anomalies.length > 0 && (
-                      <div className="bg-white rounded p-2">
-                        <div className="font-medium text-gray-700 mb-1">Anomalies</div>
+                      <a 
+                        href={message.data.monitoring_urls?.anomalies} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="bg-white rounded p-2 hover:bg-yellow-50 hover:shadow-md transition-all cursor-pointer border-l-4 border-yellow-500"
+                      >
+                        <div className="font-medium text-gray-700 mb-1 flex items-center">
+                          Anomalies
+                          <span className="ml-1 text-yellow-500">↗</span>
+                        </div>
                         <div className="text-2xl font-bold text-yellow-600">{message.data.anomalies.length}</div>
-                      </div>
+                      </a>
                     )}
                     
                     {message.data.errors && message.data.errors.length > 0 && (
-                      <div className="bg-white rounded p-2">
-                        <div className="font-medium text-gray-700 mb-1">Error Types</div>
+                      <a 
+                        href={message.data.monitoring_urls?.errors} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="bg-white rounded p-2 hover:bg-orange-50 hover:shadow-md transition-all cursor-pointer border-l-4 border-orange-500"
+                      >
+                        <div className="font-medium text-gray-700 mb-1 flex items-center">
+                          Error Types
+                          <span className="ml-1 text-orange-500">↗</span>
+                        </div>
                         <div className="text-2xl font-bold text-orange-600">{message.data.errors.length}</div>
-                      </div>
+                      </a>
                     )}
                   </div>
                 </div>

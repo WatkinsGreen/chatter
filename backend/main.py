@@ -8,9 +8,16 @@ import aiohttp
 import json
 from datetime import datetime, timedelta
 import logging
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+logger = logging.getLogger(__name__)
 from llm_service import llm_service, IncidentContext, ConversationMessage, LLMResponse
 from conversation_flow import conversation_flow
 from config.monitoring import MonitoringConfig
+from api_analyzer import api_analyzer
 
 app = FastAPI(title="Incident Response Chatbot with AI", version="2.0.0")
 
@@ -65,7 +72,8 @@ class IncidentAnalyzer:
             "anomalies": results[1] if not isinstance(results[1], Exception) else [],
             "errors": results[2] if not isinstance(results[2], Exception) else [],
             "alerts": results[3] if not isinstance(results[3], Exception) else [],
-            "time_range": {"start": start_time.isoformat(), "end": end_time.isoformat()}
+            "time_range": {"start": start_time.isoformat(), "end": end_time.isoformat()},
+            "monitoring_urls": self.get_monitoring_urls(start_time, end_time)
         }
     
     async def get_recent_deployments(self, start_time: datetime, end_time: datetime) -> List[Dict[str, Any]]:
@@ -177,6 +185,44 @@ class IncidentAnalyzer:
             analysis.append(f"⚠️ **Multi-Service Impact**: {len(services_with_issues)} services affected: {', '.join(services_with_issues)}")
         
         return "\n".join(analysis) if analysis else "No significant correlations detected."
+    
+    def get_monitoring_urls(self, start_time: datetime, end_time: datetime) -> Dict[str, str]:
+        """Generate URLs to monitoring systems for the given time range"""
+        start_ts = int(start_time.timestamp() * 1000)  # Convert to milliseconds
+        end_ts = int(end_time.timestamp() * 1000)
+        
+        urls = {}
+        
+        # Grafana URLs for different dashboards
+        grafana_base = self.monitoring_systems.get("grafana", {}).get("url", "")
+        if grafana_base:
+            # Clean up URL and ensure it doesn't end with /
+            grafana_base = grafana_base.rstrip('/')
+            # Use Restaurant365 Grafana with time range
+            urls["deployments"] = f"{grafana_base}/?from=now-2h&to=now"
+            urls["anomalies"] = f"{grafana_base}/?from=now-2h&to=now&kiosk=true"
+        
+        # Prometheus for alerts
+        prometheus_base = self.monitoring_systems.get("prometheus", {}).get("url", "")
+        if prometheus_base:
+            # Use the actual Prometheus query interface
+            urls["alerts"] = prometheus_base
+        
+        # Elasticsearch for errors/logs
+        elasticsearch_base = self.monitoring_systems.get("elasticsearch", {}).get("url", "")
+        if elasticsearch_base:
+            # Use Elasticsearch search API for errors
+            urls["errors"] = f"{elasticsearch_base}/_search?q=level:error&size=100&sort=@timestamp:desc"
+        
+        # Nagios for system health (URL already includes the full path)
+        nagios_base = self.monitoring_systems.get("nagios", {}).get("url", "")
+        if nagios_base:
+            urls["system_health"] = nagios_base
+        
+        # Add debug logging
+        logger.info(f"Generated monitoring URLs: {urls}")
+            
+        return urls
 
 analyzer = IncidentAnalyzer()
 
@@ -229,17 +275,39 @@ async def chat_endpoint(message: ChatMessage):
             )
         
         # If conversation flow says to use traditional flow, continue with normal logic
-        # Get monitoring data for context
+        # Get conversation state for context-aware monitoring
+        conversation_state = conversation_flow.get_conversation_state(conversation_id)
+        
+        # Get enhanced monitoring data based on conversation context
+        api_analysis = await api_analyzer.analyze_for_conversation_context(conversation_state)
+        
+        # Get traditional monitoring data 
         data = await analyzer.query_recent_changes(2)
         correlation_analysis = analyzer.analyze_correlation(data)
         
-        # Create incident context for LLM
+        # Enhance data with API analysis results
+        if api_analysis.get("monitoring_data"):
+            data["customer_data"] = api_analysis["monitoring_data"] 
+            data["ai_context"] = api_analysis["ai_context"]
+        
+        # Use dynamic dashboard URLs if available
+        if api_analysis.get("dashboard_urls"):
+            data["monitoring_urls"] = api_analysis["dashboard_urls"]
+        else:
+            # Fallback to static URLs
+            data["monitoring_urls"] = analyzer.get_monitoring_urls(datetime.now() - timedelta(hours=2), datetime.now())
+        
+        # Create enhanced incident context for LLM
+        enhanced_correlation = correlation_analysis
+        if api_analysis.get("ai_context"):
+            enhanced_correlation += "\n\n## Customer Context\n" + api_analysis["ai_context"].get("customer_summary", "")
+        
         context = IncidentContext(
             recent_changes=data,
             active_alerts=data.get("alerts", []),
             error_patterns=data.get("errors", []),
             service_health=data.get("anomalies", []),
-            correlation_analysis=correlation_analysis
+            correlation_analysis=enhanced_correlation
         )
         
         # Get conversation history

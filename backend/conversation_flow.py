@@ -56,9 +56,16 @@ class ConversationFlow:
     
     def process_message(self, conversation_id: str, user_message: str) -> Dict[str, Any]:
         """Process user message through the conversation flow"""
+        user_message_lower = user_message.lower().strip()
+        
+        # Check for global reset request
+        if 'start new analysis' in user_message_lower or 'start over' in user_message_lower:
+            return self._reset_conversation(conversation_id)
+        
         state = self.get_conversation_state(conversation_id)
         current_step = state['step']
-        user_message_lower = user_message.lower().strip()
+        
+        logger.info(f"Processing message for conv_id={conversation_id}, step={current_step}, message='{user_message}', wherami={state.get('wherami')}")
         
         if current_step == 'welcome':
             return self._handle_welcome(conversation_id, user_message_lower)
@@ -217,7 +224,7 @@ class ConversationFlow:
         
         return {
             'response': response,
-            'suggestions': ['Continue with analysis', 'Ask more questions', 'Start over'],
+            'suggestions': ['Continue with analysis', 'Ask more questions', 'Start new analysis'],
             'use_traditional_flow': False
         }
     
@@ -275,9 +282,25 @@ class ConversationFlow:
     
     def _handle_lunch_process(self, conversation_id: str, user_message: str) -> Dict[str, Any]:
         """Continue handling lunch process"""
+        # Check if user wants to start over
+        if 'start' in user_message.lower() and 'new' in user_message.lower():
+            return self._reset_conversation(conversation_id)
+            
         return {
             'response': "Hope you find a great place for lunch! Anything else I can help you with?",
             'suggestions': ['Start new analysis', 'Customer issue', 'Environment check'],
+            'use_traditional_flow': False
+        }
+    
+    def _reset_conversation(self, conversation_id: str) -> Dict[str, Any]:
+        """Reset conversation back to the beginning"""
+        # Clear the conversation state
+        if conversation_id in self.conversations:
+            del self.conversations[conversation_id]
+        
+        return {
+            'response': "Let's start fresh! Where are you writing in from today, AMER or EMEA?",
+            'suggestions': ['AMER', 'EMEA'],
             'use_traditional_flow': False
         }
 

@@ -6,10 +6,7 @@ from datetime import datetime
 import logging
 
 import tiktoken
-from azure.ai.inference import ChatCompletionsClient
-from azure.ai.inference.models import SystemMessage, UserMessage, AssistantMessage
-from azure.identity import DefaultAzureCredential, AzureCliCredential
-from azure.core.credentials import AzureKeyCredential
+from openai import AzureOpenAI
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -45,21 +42,12 @@ class LLMService:
         
         # Initialize Azure OpenAI client
         self.azure_client = None
-        if self.azure_endpoint:
+        if self.azure_endpoint and self.azure_api_key:
             try:
-                if self.azure_api_key:
-                    # Use API key authentication
-                    credential = AzureKeyCredential(self.azure_api_key)
-                else:
-                    # Use Azure CLI or managed identity authentication
-                    try:
-                        credential = AzureCliCredential()
-                    except:
-                        credential = DefaultAzureCredential()
-                
-                self.azure_client = ChatCompletionsClient(
-                    endpoint=self.azure_endpoint,
-                    credential=credential
+                self.azure_client = AzureOpenAI(
+                    api_version=self.azure_api_version,
+                    azure_endpoint=self.azure_endpoint,
+                    api_key=self.azure_api_key,
                 )
                 logger.info("Azure OpenAI client initialized successfully")
             except Exception as e:
@@ -139,20 +127,17 @@ Context provided:
         start_time = datetime.now()
         
         # Build messages for Azure OpenAI
-        messages = [SystemMessage(content=prompt)]
+        messages = [{"role": "system", "content": prompt}]
         
         # Add conversation history (last 10 messages to stay within limits)
         for msg in conversation_history[-10:]:
-            if msg.role == "user":
-                messages.append(UserMessage(content=msg.content))
-            else:
-                messages.append(AssistantMessage(content=msg.content))
+            messages.append({"role": msg.role, "content": msg.content})
         
         try:
             response = await asyncio.to_thread(
-                self.azure_client.complete,
-                messages=messages,
+                self.azure_client.chat.completions.create,
                 model=self.azure_deployment,
+                messages=messages,
                 temperature=0.3,
                 max_tokens=2000,
                 top_p=0.9,
@@ -164,7 +149,7 @@ Context provided:
             
             # Extract response content
             content = response.choices[0].message.content
-            tokens_used = getattr(response.usage, 'total_tokens', 0) if hasattr(response, 'usage') else 0
+            tokens_used = response.usage.total_tokens if response.usage else 0
             
             # Estimate tokens if not provided
             if tokens_used == 0:
