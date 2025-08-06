@@ -9,6 +9,7 @@ import json
 from datetime import datetime, timedelta
 import logging
 from llm_service import llm_service, IncidentContext, ConversationMessage, LLMResponse
+from conversation_flow import conversation_flow
 
 app = FastAPI(title="Incident Response Chatbot with AI", version="2.0.0")
 
@@ -216,6 +217,22 @@ async def chat_endpoint(message: ChatMessage):
         # Add user message to conversation history
         add_to_conversation(conversation_id, "user", message.message)
         
+        # Process message through conversation flow first
+        flow_result = conversation_flow.process_message(conversation_id, message.message)
+        
+        # If conversation flow handled the message, use its response
+        if not flow_result.get('use_traditional_flow', False):
+            # Add assistant response to history
+            add_to_conversation(conversation_id, "assistant", flow_result['response'])
+            
+            return ChatResponse(
+                response=flow_result['response'],
+                data={},
+                suggestions=flow_result.get('suggestions', []),
+                analysis_type="conversation_flow"
+            )
+        
+        # If conversation flow says to use traditional flow, continue with normal logic
         # Get monitoring data for context
         data = await analyzer.query_recent_changes(2)
         correlation_analysis = analyzer.analyze_correlation(data)
@@ -232,11 +249,17 @@ async def chat_endpoint(message: ChatMessage):
         # Get conversation history
         history = get_conversation_history(conversation_id)
         
+        # Apply any focus from conversation flow
+        focus_context = flow_result.get('focus', '')
+        if focus_context:
+            # Add focus context to the LLM prompt
+            context.correlation_analysis = f"{correlation_analysis}\n\nFOCUS: {focus_context}"
+        
         # Check if we should use LLM for this query
         use_llm = any(keyword in query for keyword in [
             "analyze", "explain", "why", "how", "what should", "recommend", 
             "suggest", "help", "understand", "investigate", "troubleshoot"
-        ]) or len(query.split()) > 10  # Use LLM for complex queries
+        ]) or len(query.split()) > 10 or flow_result.get('use_traditional_flow', False)
         
         if use_llm and llm_service.get_available_providers():
             # Generate intelligent response using LLM
