@@ -19,19 +19,18 @@ interface ChatResponse {
   suggestions?: string[];
 }
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = 'http://10.10.4.15:8000';
 
 function App() {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      content: 'Hello! I\'m your incident response assistant. I can help you investigate issues by analyzing recent changes, errors, and alerts across your monitoring systems.',
+      content: 'Hello! Where are you writing in from today, AMER or EMEA?',
       isUser: false,
       timestamp: new Date(),
       suggestions: [
-        'What changed in the last 2 hours?',
-        'Show me error details',
-        'Check active alerts'
+        'AMER',
+        'EMEA'
       ]
     }
   ]);
@@ -118,14 +117,14 @@ function App() {
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4 shadow-sm">
+      <div className="bg-orange-500 border-b border-orange-600 px-6 py-4 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-            <Bot className="w-6 h-6 text-white" />
+          <div className="w-10 h-10 bg-orange-600 rounded-lg flex items-center justify-center">
+            <span className="text-2xl">🌮</span>
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-gray-900">Incident Response Assistant</h1>
-            <p className="text-sm text-gray-500">Real-time monitoring analysis and correlation</p>
+            <h1 className="text-xl font-semibold text-white">Taco 'Bout Errors 🌮</h1>
+            <p className="text-sm text-orange-100">Real-time monitoring analysis and correlation</p>
           </div>
         </div>
       </div>
@@ -154,7 +153,8 @@ function App() {
                       h3: ({children}) => <h3 className="text-md font-medium mb-1 mt-2">{children}</h3>,
                       p: ({children}) => <p className="mb-2 last:mb-0">{children}</p>,
                       ul: ({children}) => <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>,
-                      code: ({children}) => <code className="bg-gray-100 px-1 py-0.5 rounded text-xs">{children}</code>
+                      code: ({children}) => <code className="bg-gray-100 px-1 py-0.5 rounded text-xs">{children}</code>,
+                      a: ({href, children}) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline">{children}</a>
                     }}
                   >
                     {message.content}

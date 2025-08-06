@@ -10,12 +10,13 @@ from datetime import datetime, timedelta
 import logging
 from llm_service import llm_service, IncidentContext, ConversationMessage, LLMResponse
 from conversation_flow import conversation_flow
+from config.monitoring import MonitoringConfig
 
 app = FastAPI(title="Incident Response Chatbot with AI", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_origins=["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000", "http://127.0.0.1:5173", "http://0.0.0.0:3000", "http://0.0.0.0:5173", "http://10.10.4.15:3000", "http://10.10.4.15:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -43,12 +44,7 @@ conversation_memory: Dict[str, List[ConversationMessage]] = {}
 
 class IncidentAnalyzer:
     def __init__(self):
-        self.monitoring_systems = {
-            "grafana": {"url": "http://localhost:3000", "token": ""},
-            "prometheus": {"url": "http://localhost:9090", "token": ""},
-            "elasticsearch": {"url": "http://localhost:9200", "token": ""},
-            "nagios": {"url": "http://localhost/nagios", "token": ""}
-        }
+        self.monitoring_systems = MonitoringConfig.get_enabled_systems()
     
     async def query_recent_changes(self, hours: int = 2) -> Dict[str, Any]:
         """Query all systems for recent changes"""

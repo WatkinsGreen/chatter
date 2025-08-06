@@ -32,7 +32,7 @@ class IncidentContext(BaseModel):
     recent_changes: Optional[Dict[str, Any]] = None
     active_alerts: Optional[List[Dict[str, Any]]] = None
     error_patterns: Optional[List[Dict[str, Any]]] = None
-    service_health: Optional[Dict[str, Any]] = None
+    service_health: Optional[List[Dict[str, Any]]] = None
     correlation_analysis: Optional[str] = None
 
 class LLMService:
@@ -66,7 +66,7 @@ class LLMService:
                 logger.error(f"Failed to initialize Azure OpenAI client: {e}")
                 self.azure_client = None
         else:
-            logger.error("AZURE_OPENAI_ENDPOINT not configured")
+            logger.info("AZURE_OPENAI_ENDPOINT not configured - running in traditional mode only")
         
         # Token counting
         try:
